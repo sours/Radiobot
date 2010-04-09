@@ -1,0 +1,12 @@
+>>> Lolium Commands <<<
+-radio >>> Displays everything about the stream.
+-status >>> Displays the stream's status.
+-dj >>> Shows the current DJ.
+-listeners >>> Shows the current number of listeners tuned into Partyvan Radio.
+-np >>> Shows the song currently playing.
+-djhelp >>> Shows help for DJ's.
+-request -song- >>> Sends a request for 'song' to the current DJ.
+-requestsilent -song- >>> Sends a request for 'song' to the current DJ, anonymously.
+
+All commands can be sent in PM as well.
+>>> END <<<

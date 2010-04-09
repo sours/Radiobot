@@ -1,0 +1,44 @@
+'''''''''''''''''''''''''''''''
+'''''' Sets up the bot ''''''''
+'''''''''''''''''''''''''''''''
+'Realname needs two words with a space between
+'username needs to be quite short or will get capped
+'When a value is in {}, seperate several ones by commas.
+'Please use a unique CmdPrefix :)
+
+'IRC stuff
+Nick = change me
+Realname = change me
+Username = lua
+Quitmsg = bye!
+Channels = {#radio,#djs}
+CmdPrefix = -
+Servers = {irc.change me.org} 'Recommended to use one at a time
+Port = 6667
+Timeout = 30
+
+'Bot stuff
+'OperLogin = change me
+'LoginPass = change me
+PollRate = 0
+JoinMsg = {PRIVMSG NickServ :IDENTIFY change me} 'sends RAW messages on server connect
+
+'Plugins settings
+PluginDir = plugins
+PluginExtensions = {lua}
+
+'''''''''''''''''''''''
+'Radio settings
+'''''''''''''''''''''''
+StreamName = NNCR
+RadioUpdate = 20 'Seconds to wait between status updates
+StatusURL = http://change me 'URL to status page
+TuneInURL = http://change me 'URL to radio
+
+'Room seetings
+StaffRoom = #djs
+AnnounceRooms = {#radio} 'hax for testing
+
+'Mounts to use-
+ListenMount = /change me
+AutomationMount = /change me

@@ -1,0 +1,4 @@
+'the syntax is the same as the config file
+'To add an admin: nick = mask
+
+admin = host.host.host.host

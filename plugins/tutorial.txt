@@ -1,0 +1,58 @@
+COMMANDS
+
+Command.Register syntax:
+
+Command.Register(CommandName, FunctionToCall, NumArgs, Description, AdminOnly)
+
+NumArgs is the minimum number of arguments required for the function to be called.
+
+FunctionToCall are called with the following arguments:
+
+FunctionToCall(UserName, Nick, HostMask, Arguments, AllArguments, IsPm)
+
+Arguments is a table of words after the command. AllArguments is a string with all of them.
+
+Example:
+function MyCommand( UserName, Nick, HostMask, Arguments, AllArguments, IsPm)
+         print(Nick.. " executed a command with arguments: " .. AllArguments)
+end
+
+Command.Register("MYCOMMAND", MyCommand, 0, "MYCOMMAND - This is a description.", false)
+
+HOOKS
+
+Hooks are simply events. They're what links the IRC library to the plugins in the first place.
+Use hook.Add to add a function to a hook:
+hook.Add(HookType,UniqueName,Function)
+
+HookType is the hook type to hook to the function. UniqueName is the string name of your current hook. Used in hook.Remove.
+
+Example:
+function MyChatHook(user, mask, room, nick, msg)
+         print(nick.." sent a message in ".. room.."!")
+         print(msg)
+end
+
+hook.Add("RecieveChat","MyRecieveChatHook",MyChatHook)
+
+( If you want to make your own hook type, use hook.Call(YourHookName,arg1,arg2,etc) )
+
+To remove a previously registered function, use hook.Remove:
+hook.Remove("RecieveChat","MyRecieveChatHook")
+
+Would remove the hooked function in the previous example.
+
+LIST OF HOOK TYPES AND WHAT THEY PASS
+Think() - Run every tick.
+RecieveLine(line) - Called every time a raw IRC line is recieved.
+RecieveChat(user,mask,room,nick,msg) - Called whenever a chat message is recieved.
+MeJoinRoom(room) - Called whenever you join a room.
+JoinRoom(room,nick) - called whenever someone joins a room.
+LeaveRoom(room,nick,msg) - Called whenever someone leaves a room.
+OnConnect(ObjServer) - Called whenever you succesfully connect to a server. Passes a server object.
+FailConnect(ObjServer) - Called whenever you fail a connection to a server. Passes a server object.
+MeKick(room,kicker) - Called whenever you get kicked.
+Kick(room,nick,kicker) - Called whenever someone gets kicked.
+NickChange(old nick, new nick) - Called whenever someone changes nick.
+Quit(nick, msg) - Called whenever someone quits.
+Ban() - ??

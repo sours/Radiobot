@@ -1,0 +1,432 @@
+--BUGS SO FAR:
+-- Recently played doesn't work as expected
+-- Sours is lazy
+--TO DO: 
+-- Request file and management
+------------------------------------------------------------------------------------------------
+-- Radio commands
+------------------------------------------------------------------------------------------------
+PLUGIN.Name = "Radio"
+PLUGIN.Description = "Radio status parser for Icecast2 and radio commands."
+
+--called when the plugin is loaded/reloaded
+function PLUGIN:Load()
+	     local html = RADIO.Update()
+
+             if html then
+                RADIO.Parse(html)
+             end
+end
+------------------------------------------------------------------------------------------------
+-- Parser
+------------------------------------------------------------------------------------------------
+RADIO = {}
+RADIO.Name = bot.Config.StreamName
+RADIO.ParseURL = bot.Config.StatusURL
+RADIO.TuneIn = bot.Config.TuneInURL or "NOT SPECIFIED"
+RADIO.StaffRoom = bot.Config.StaffRoom or "#radiostaff"
+RADIO.AnnounceRooms = bot.Config.AnnounceRooms or {"#radio"}
+RADIO.DJField = bot.Config.DJField or "Description"
+
+RADIO.Automation = bot.Config.AutomationMount or "zautomation"
+RADIO.Listen = bot.Config.ListenMount or "listen"
+RADIO.Mounts = {}
+RADIO.MountPoint = {}
+RADIO.Available = false
+RADIO.LastUpdate = CurTime()
+RADIO.UpdateInterval = tonumber(bot.Config.RadioUpdate) or 20
+
+RADIO.Info = {}
+
+function RADIO.Broadcast(msg)
+         for k,srv in pairs(bot.Servers) do
+             for _,room in pairs(RADIO.AnnounceRooms) do
+                 srv:SendChat(room,msg)
+             end
+         end
+end
+
+function RADIO.Update()
+         --resolves the port automatically from the URL
+         local html,c,h = socket.http.request(RADIO.ParseURL)
+
+         RADIO.LastUpdate = CurTime()
+
+         if not html then
+            RADIO.Available = false
+            return false
+         end
+
+         RADIO.Available = true
+
+         return html
+end
+
+function RADIO.Parse(html)
+         if not RADIO.Available then return end
+
+         RADIO.Mounts = {}
+         
+         --parse alternate XSL file
+         content = html:sub( html:find("<pre>") + 6, html:find("</pre>") - 1  )
+         lines = string.Explode(content, "|")
+
+         for line = 2,#lines do --parse 2 lines at a time
+			if lines[line] == "\n" then break end
+               mount = {}
+               keys = string.Explode(lines[1],"~")
+               values = string.Explode(string.Replace(string.Replace(lines[line],"\n",""),"&amp;","&"), "~")
+
+               if not RADIO.Mounts[values[1]] then RADIO.Mounts[values[1]] = {} end
+               print("\n")
+               for i,key in pairs(keys) do
+                   print(key..": "..values[i])
+                   mount[key] = values[i]
+               end
+		mount["Currently Playing"] = 
+string.sub(mount["Currently Playing"],4)
+
+               RADIO.Mounts[mount["MountPoint"]] = mount
+
+			  
+         end
+
+         --choose mount point		 
+		 if RADIO.Mounts[RADIO.Automation] == nil then
+			if RADIO.Mounts[RADIO.Listen] ==  nil  then --check for availble mounts
+				RADIO.Available = False
+				print("\n\nRADIO NOT CURRENTLY AVAILIBLE ")
+			end
+			
+			elseif RADIO.Mounts[RADIO.Listen] == nil then
+				 RADIO.MountPoint = RADIO.Mounts[RADIO.Automation]
+				 RADIO.MountName = RADIO.Automation
+				 print("\nThe Current Mount is: AUTOMATION")
+				 
+			else
+				RADIO.MountPoint = RADIO.Mounts[RADIO.Listen]
+				RADIO.MountName = RADIO.Listen
+				print("\n The current mount is: LISTEN")
+			  
+			 end
+		 
+		if RADIO.Avalible == true then
+		print("CURRENT MOUNT IS:"..RADIO.MountName) -- Not sure why this is broke, too lazy to fix -sours
+		end
+end
+
+function RADIO.ParseMountPoint(name,html)
+	 local token = "<tr>" --It's an HTML table with keyvalue pairs
+	 local endtoken = "</tr>"
+	 local tokenL = string.len(token)
+	 local endtokenL = string.len(endtoken)
+
+	 if not RADIO.Mounts[name] then RADIO.Mounts[name] = {} end --first time we see this mount
+
+         --parse
+         local pos = string.find(html,endtoken)+1 --skip the starting token, as the mount is in the middle of a pair
+
+	 while true do
+               local start = string.find(html,token,pos)
+               local stop = string.find(html,endtoken,pos)
+               --no more pairs
+               if not start or not stop then break end
+
+               --parse pair
+               local key,value = RADIO.ParseTableRow(string.sub(html,start,stop))
+               RADIO.Mounts[name][key] = value
+              
+               pos = stop + 1
+         end
+end
+
+--<td>Stream Description:</td>
+--<td class="streamdata">lolbifrons</td>
+--</tr>
+--   -> "Stream Description","lolbifrons"
+function RADIO.ParseTableRow(html)
+         local key = string.sub(html,10,string.find(html,"</")-2)
+         local value = string.sub(html,string.find(html,"\">")+2,-8)
+         return key, value
+end
+
+function UpdateRecPlayed(song)
+	print("Updating Recently Played list")
+	local count = 0
+	local file = io.open(bot.Config.recently_played or "recently_played.txt")
+	print("rpfile open")
+	if not rpfile then
+		print("rpfile not found making a new one")
+		rpfile = io.open(bot.Config.recently_played or "recently_played.txt","w")
+		rpfile:close()
+		return(nil)
+		end
+	
+	local itr = io.lines(bot.Config.recently_played or "recently_played.txt")
+	for lines in itr do
+		count = count + 1
+	end
+	print("THE COUNT IS " .. tostring(count) .."  ================================")
+
+	if not bot.Config.max_rec_played then bot.Config.max_rec_played = 5 end
+
+	if count > 5 then
+		print("count is more than max count")
+		local tmp = io.open("tmpfile.txt","w")
+	
+		local recitr = io.lines(bot.Config.recently_played or "recently_played.txt")
+		
+		if count ~= 0 then
+			print("skiping first line in file ".. recitr())
+			for lines in recitr do 
+				print(lines)
+				tmp:write(lines .. "\n")
+			end
+			
+			tmp:close()
+	                require("os")
+        	        os.remove(bot.Config.recently_played or "recently_played.txt")
+             		print("removed old recently played")
+                	os.rename("tmpfile.txt" , bot.Config.recently_played or "recently_played.txt")
+                	print("renamed tmpfile")
+                	print("Finished updating recently played list")
+			return(nil)
+
+		end
+	else
+		local tmp = io.open(bot.Config.recently_played or "recently_played.txt","a")
+
+                tmp:write(song.."\n")
+		print("song wrote to file ".. song )
+                tmp:close()
+             	print("Finished updating recently played list")
+	end
+end
+	
+
+function RADIO.AutoUpdate()
+         if CurTime() - RADIO.LastUpdate <= RADIO.UpdateInterval then return end
+         local old = table.Copy(RADIO.MountPoint)
+         local html = RADIO.Update()
+         
+         if html then
+            RADIO.Parse(html)
+         end
+
+         if not RADIO.Available then return end
+
+         --song changed?
+         if old["Currently Playing"] ~= RADIO.MountPoint["Currently Playing"] then
+            RADIO.Broadcast("Now playing: "..RADIO.MountPoint["Currently Playing"].."")
+	    print("~~~~~~~~~~~~~song changed~~~~~~~~~~~~~~~~~")
+	    UpdateRecPlayed(RADIO.MountPoint["Currently Playing"])
+         end
+         
+         --peak listeners changed?
+         if old["Peak Listeners"] ~= RADIO.MountPoint["Peak Listeners"] then
+            RADIO.Broadcast(RADIO.Name .. " now has "..RADIO.MountPoint["Peak Listeners"].." listeners!")
+         end
+
+         --listeners changed?
+         if old["Current Listeners"] ~= RADIO.MountPoint["Current Listeners"] then
+            for k,srv in pairs(bot.Servers) do
+                if RADIO_DJInfoMode == RADIO_DJ_NOTICE or RADIO_DJInfoMode == RADIO_DJ_NORMAL or RADIO_DJInfoMode == RADIO_DJ_STAFF then
+                   srv:SendNotice(RADIO.MountPoint[RADIO.DJField],"Listeners: "..RADIO.MountPoint["Current Listeners"].."")
+                else -- only PM mode will send in PM, else notice
+                   srv:SendChat(RADIO.MountPoint[RADIO.DJField],"Listeners: "..RADIO.MountPoint["Current Listeners"].." listeners!")
+                end
+            end
+         end
+end
+
+hook.Add("Think","radio_think",RADIO.AutoUpdate)
+------------------------------------------------------------------------------------------------
+-- Commands
+------------------------------------------------------------------------------------------------
+function RADIO_Commands(user,nick,mask,room,args,AllArgs,IsPm)
+	 for k,line in pairs(string.Explode(file.ReadText("commands.txt"),"\n")) do
+	     Command.PollNotice(nick,line)
+         end
+end
+
+Command.Register("COMMANDS", RADIO_Commands, 0, "COMMANDS - Displays all radio commands.", false)
+
+function RADIO_DJHelp(user,nick,mask,room,args,AllArgs,IsPm)
+	 for k,line in pairs(string.Explode(file.ReadText("djhelp.txt"),"\n")) do
+	     Command.PollNotice(nick,line)
+         end
+end
+
+Command.Register("DJHELP", RADIO_DJHelp, 0, "DJHELP - Displays DJ commands.", false)
+
+function RADIO_RECENTLYPLAYED(user, nick,mask,room,args, AllArgs, IsPm)
+	print("in RP CALLED")
+	local file = io.open(bot.Config.recently_played or "recently_played.txt")
+	print("file opened")
+	if not file then
+	print("first if file not found") 
+	Command.Reply("File not found")
+	return end
+	local text = file:read("*a")
+	print("file read")
+	print("text is " .. text)
+	if not text then Command.Reply("file empty"); print("2nd if empty file"); return(nil); end
+	local itr = io.lines(bot.Config.recently_played or "recently_played.txt")
+	for lines in itr do
+		Command.PollNotice(nick,lines)
+	end
+end
+
+Command.Register("RP", RADIO_RECENTLYPLAYED, 0, "RP - Displays Recently Played Songs", false)
+
+function RADIO_Radio(user,nick,mask,room,args,AllArgs,IsPm)
+         if not RADIO.Available then Command.Reply("The radio is not currently broadcasting.") return end
+
+         local str = ""..bot.Config.StreamName .. " is currently broadcasting live, with "..RADIO.MountPoint[RADIO.DJField].." as your DJ! .:. The current song is \""..RADIO.MountPoint["Currently Playing"].."\", and we have "..RADIO.MountPoint["Current Listeners"].." listeners .:. Tune in - " ..RADIO.TuneIn..""
+         
+         if RADIO.MountName == RADIO.Automation then
+            str = ""..bot.Config.StreamName .. " is currently broadcasting live on automation! .:. The current song is \""..RADIO.MountPoint["Currently Playing"].."\", and we have "..RADIO.MountPoint["Current Listeners"].." listeners .:. Tune in - " ..RADIO.TuneIn..""
+         end
+
+         Command.Reply(str)
+end
+
+Command.Register("RADIO", RADIO_Radio, 0, "RADIO - Displays all information on the radio stream.", false)
+
+function RADIO_Status(user,nick,mask,room,args,AllArgs,IsPm)
+         if not RADIO.Available then Command.Reply("The radio is not currently broadcasting.") return end
+	 Command.Reply(""..bot.Config.StreamName .. " is currently broadcasting live! Tune in @ " ..RADIO.TuneIn .. " !")
+end
+
+Command.Register("STATUS", RADIO_Status, 0, "STATUS - Displays stream status.", false)
+
+function RADIO_NowPlaying(user,nick,mask,room,args,AllArgs,IsPm)
+         if not RADIO.Available then Command.Reply("The radio is not currently broadcasting.") return end
+
+	 Command.Reply(""..RADIO.MountPoint["Currently Playing"].."")
+end
+Command.Register("NP", RADIO_NowPlaying, 0, "NP - Displays the currently playing song.", false)
+Command.Alias("SONG","NP")
+Command.Alias("NOWPLAYING","NP")
+
+function RADIO_Listeners(user,nick,mask,room,args,AllArgs,IsPm)
+         if not RADIO.Available then Command.Reply("The radio is not currently broadcasting.") return end
+
+	 Command.Reply("We currently have "..RADIO.MountPoint["Current Listeners"] .." listeners.")
+end
+
+Command.Register("LISTENERS", RADIO_Listeners, 0, "LISTENERS - Displays the current amount of listeners.", false)
+
+function RADIO_Dj(user,nick,mask,room,args,AllArgs,IsPm)
+         if not RADIO.Available then Command.Reply("The radio is not currently broadcasting.") return end
+         if RADIO.Dj == "Partyvan Radio" then Command.Reply(RADIO.Name.." is currently on automation.") return end
+
+         if RADIO.MountName == RADIO.Automation then
+             Command.Reply(RADIO.Name .. " is currently on automation.")
+         else
+	     Command.Reply("The current "..RADIO.Name.." DJ is " .. RADIO.MountPoint[RADIO.DJField] .."!")
+	 end
+end
+
+Command.Register("DJ", RADIO_Dj, 0, "DJ - Displays the current DJ.", false)
+
+function RADIO_Stream(user,nick,mask,room,args,AllArgs,IsPm)
+         if not RADIO.Available then Command.Reply("The radio is not currently broadcasting.") return end
+	 Command.Reply("You are now listening to "..RADIO.MountPoint["Stream Name"].." with "..RADIO.MountPoint[RADIO.DJField]..".")
+end
+
+Command.Register("STREAM", RADIO_Stream, 0, "STREAM - Displays the stream title.", false)
+
+function RADIO_Request(user,nick,mask,room,args,AllArgs,IsPm)
+         if not RADIO.Available then Command.Reply("The radio is not currently broadcasting.") return end
+         if not RADIO.MountPoint[RADIO.DJField] then return end
+
+         if RADIO_DJInfoMode == RADIO_DJ_NORMAL or RADIO_DJInfoMode == RADIO_DJ_PM then
+	    Command.PollChat(RADIO.MountPoint[RADIO.DJField], nick .. " wants you to play \"" .. AllArgs.."\"")
+
+         elseif RADIO_DJInfoMode == RADIO_DJ_NOTICE then
+            Command.PollNotice(RADIO.MountPoint[RADIO.DJField], nick .. " wants you to play \"" .. AllArgs.."\"")
+
+         elseif RADIO_DJInfoMode == RADIO_DJ_STAFF then
+            Command.PollChat(RADIO.StaffRoom, nick .. " wants you to play \"" .. AllArgs.."\"")
+         end
+
+	 Command.PollNotice(nick,"Request sent to DJ!")
+end
+
+Command.Register("REQUEST", RADIO_Request, 0, "REQUEST <song> - Sends a request to the current DJ.", false)
+
+function RADIO_Current_Requests(user,nick,mask,room,args,AllArgs,IsPm)
+	reqfile = io.lines("requests.txt")
+	if not reqfile then return(nil) end
+	for lines in reqfile do
+		Command.PollNotice(nick,lines)
+	end
+end
+
+function RADIO_RequestSilent(user,nick,mask,room,args,AllArgs,IsPm)
+         if not RADIO.Available then Command.Reply("The radio is not currently broadcasting.") return end
+         if not RADIO.MountPoint[RADIO.DJField] then return end
+
+         if RADIO_DJInfoMode == RADIO_DJ_NORMAL or RADIO_DJInfoMode == RADIO_DJ_PM then
+	    Command.PollChat(RADIO.MountPoint[RADIO.DJField], "Anonymous request: " .. AllArgs)
+
+         elseif RADIO_DJInfoMode == RADIO_DJ_NOTICE then
+            Command.PollNotice(RADIO.MountPoint[RADIO.DJField],"Anonymous request: " .. AllArgs)
+
+         elseif RADIO_DJInfoMode == RADIO_DJ_STAFF then
+            Command.PollChat(RADIO.StaffRoom, "Anonymous request: " .. AllArgs)
+         end
+
+         Command.PollNotice(nick,"Request sent to DJ, anonymously!")
+end
+
+Command.Register("REQUESTSILENT", RADIO_RequestSilent, 0, "REQUESTSILENT <song> - Sends a request to the current DJ anonymously.", false)
+
+--dj commands
+RADIO_DJ_NORMAL = 0
+RADIO_DJ_NOTICE = 1
+RADIO_DJ_PM = 2
+RADIO_DJ_STAFF = 3
+
+RADIO_DJInfoMode = RADIO_DJ_NORMAL
+
+function RADIO_SendNormal(user,nick,mask,room,args,AllArgs,IsPm)
+         if not RADIO.Available then Command.Reply("The radio is not currently broadcasting.") return end
+         if nick ~= RADIO.MountPoint[RADIO.DJField] then return end
+
+         RADIO_DJInfoMode = RADIO_DJ_NORMAL
+         Command.Reply("Reply mode set to normal.")
+end
+
+Command.Register("SENDNORMAL", RADIO_SendNormal, 0, "SENDNORMAL - Sends DJ information normally.", false)
+
+function RADIO_SendNotice(user,nick,mask,room,args,AllArgs,IsPm)
+         if not RADIO.Available then Command.Reply("The radio is not currently broadcasting.") return end
+         if nick ~= RADIO.MountPoint[RADIO.DJField] then return end
+
+         RADIO_DJInfoMode = RADIO_DJ_NOTICE
+         Command.Reply("Reply mode set to notices.")
+end
+
+Command.Register("SENDNOTICE", RADIO_SendNotice, 0, "SENDNOTICE - Sends DJ information in notices.", false)
+
+function RADIO_SendPM(user,nick,mask,room,args,AllArgs,IsPm)
+         if not RADIO.Available then Command.Reply("The radio is not currently broadcasting.") return end
+         if nick ~= RADIO.MountPoint[RADIO.DJField] then return end
+
+         RADIO_DJInfoMode = RADIO_DJ_PM
+         Command.Reply("Reply mode set to personal messages.")
+end
+
+Command.Register("SENDPM", RADIO_SendPM, 0, "SENDPM - Sends DJ information in PM's.", false)
+
+function RADIO_SendStaff(user,nick,mask,room,args,AllArgs,IsPm)
+         if not RADIO.Available then Command.Reply("The radio is not currently broadcasting.") return end
+         if nick ~= RADIO.MountPoint[RADIO.DJField] then return end
+
+         RADIO_DJInfoMode = RADIO_DJ_STAFF
+         Command.Reply("Reply mode set to the staff room.")
+end
+
+Command.Register("SENDSTAFF", RADIO_SendStaff, 0, "SENDSTAFF - Sends DJ information to the staffroom.", false)

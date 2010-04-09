@@ -1,0 +1,7 @@
+>>> Lolium DJ Commands <<<
+Lolium offers several modes for DJ's to get information.
+-sendnormal >>> Requests will be sent in PM, changes in listeners will be sent in a notice.
+-sendnotice >>> Requests and changes in listeners will be sent in notices.
+-sendpm >>> Requests and changes in listeners will be sent in personal messages.
+-sendstaff >>> Requests will be sent to the staff room, and changes in listeners in a notice.
+>>> END <<<
