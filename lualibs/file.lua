@@ -11,13 +11,10 @@ function file.Write(path,text)
 end
 
 function file.OpenDir(path)
-         local k = 0
          local tbl = {}
 
          for fname in lfs.dir(path) do
-             k = k + 1
-    
-             if k > 2 then
+             if fname ~= "." and fname ~= ".." then
                 tbl[#tbl + 1] = fname
              end
          end
